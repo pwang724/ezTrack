@@ -241,7 +241,7 @@ def LoadAndCrop(video_dict,cropmethod=None,fstfile=False,accept_p_frames=False):
     if cropmethod=='Box':         
         box = hv.Polygons([])
         box.opts(alpha=.5)
-        video_dict['crop'] = streams.BoxEdit(source=box,num_objects=1)     
+        video_dict['crop'] = streams.BoxEdit(source=box,num_objects=1)
         return (image*box), video_dict
     
     
@@ -1642,7 +1642,7 @@ def Batch_Process(video_dict,tracking_params,bin_dict,accept_p_frames=False):
 
 ########################################################################################        
 
-def PlayVideo(video_dict,display_dict,location):  
+def PlayVideo(video_dict, display_dict, location, angles_in_rad=None):
     """ 
     -------------------------------------------------------------------------------------
     
@@ -1738,11 +1738,12 @@ def PlayVideo(video_dict,display_dict,location):
                     int(frame.shape[0]*video_dict['dsmpl'])
                 ),
                 cv2.INTER_NEAREST)
-        frame = cropframe(frame, video_dict['crop'])
+        # frame = cropframe(frame, video_dict['crop'])
         height, width = int(frame.shape[0]), int(frame.shape[1])
-        fourcc = 0#cv2.VideoWriter_fourcc(*'jpeg') #only writes up to 20 fps, though video read can be 30.
-        writer = cv2.VideoWriter(os.path.join(os.path.normpath(video_dict['dpath']), 'video_output.avi'), 
-                                 fourcc, 20.0, 
+        fourcc = cv2.VideoWriter_fourcc(*'MP4V')
+        writer = cv2.VideoWriter(display_dict['save_pathname'],
+                                 fourcc,
+                                 display_dict['fps'],
                                  (width, height),
                                  isColor=False)
 
@@ -1750,7 +1751,11 @@ def PlayVideo(video_dict,display_dict,location):
     cap.set(cv2.CAP_PROP_POS_FRAMES,video_dict['start']+display_dict['start']) 
 
     #Play Video
-    for f in range(display_dict['start'],display_dict['stop']):
+    angle_linewidth = 20 # in pixels
+    import tqdm
+    frames = []
+    i = 0
+    for f in range(display_dict['start'], display_dict['stop']):
         ret, frame = cap.read() #read frame
         if ret == True:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -1762,10 +1767,20 @@ def PlayVideo(video_dict,display_dict,location):
                         int(frame.shape[0]*video_dict['dsmpl'])
                     ),
                     cv2.INTER_NEAREST)
-            frame = cropframe(frame, video_dict['crop'])
+            # frame = cropframe(frame, video_dict['crop'])
             markposition = (int(location['X'][f]),int(location['Y'][f]))
-            cv2.drawMarker(img=frame,position=markposition,color=255)
-            display_image(frame,display_dict['fps'],display_dict['resize'])
+            if angles_in_rad is None:
+                cv2.drawMarker(img=frame,position=markposition,color=255)
+            else:
+                angle = angles_in_rad[i]
+                x = int(markposition[0] + np.cos(angle) * angle_linewidth)
+                y = int(markposition[1] - np.sin(angle) * angle_linewidth) # flipped y axis
+                cv2.line(frame, markposition, (x, y), color=255)
+                i+=1
+            frames.append(frame)
+
+            if display_dict['display']:
+                display_image(frame,display_dict['fps'],display_dict['resize'])
             #Save video (if desired). 
             if display_dict['save_video']==True:
                 writer.write(frame) 
@@ -1776,6 +1791,11 @@ def PlayVideo(video_dict,display_dict,location):
     print('Done playing segment')
     if display_dict['save_video']==True:
         writer.release()
+
+    if display_dict['save_tif']==True:
+        from utils import imutils
+        tifname = display_dict['save_pathname'][:-4] + '.tif'
+        imutils.write_tifstack(tifname, np.array(frames), verbose=True)
 
 def display_image(frame,fps,resize):
     img = PIL.Image.fromarray(frame, "L")
