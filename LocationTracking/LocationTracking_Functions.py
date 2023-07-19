@@ -48,6 +48,7 @@ from holoviews.streams import Stream, param
 from io import BytesIO
 from IPython.display import clear_output, Image, display
 hv.notebook_extension('bokeh')
+mpl.use('TkAgg')
 warnings.filterwarnings("ignore")
 
 
@@ -610,6 +611,10 @@ def Locate(cap,tracking_params,video_dict,prior=None):
             dif = dif*dif_weights
             
         #threshold differences and find center of mass for remaining values
+        plt.figure();
+        plt.imshow(frame, cmap='gray');
+        plt.figure();
+        plt.imshow(dif, cmap='gray')
         dif[dif<np.percentile(dif,tracking_params['loc_thresh'])]=0
         
         #remove influence of wire
